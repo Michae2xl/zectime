@@ -12,6 +12,7 @@ It is not a storage network and it does not notarize file contents publicly. It 
 
 ## What Works Today
 
+- Live mainnet console: [zkglobalcredit.tech/timestamp](https://zkglobalcredit.tech/timestamp?lang=en).
 - Browser-first console at `/timestamp` with two actions: Generate ZK Receipt and Verify ZK Receipt.
 - Client-side SHA-256 hashing and blind Poseidon commitment generation.
 - ZecTime receipt bundle download: `zectime-zk-receipt.json`.
@@ -33,6 +34,17 @@ It is not a storage network and it does not notarize file contents publicly. It 
 8. ZecTime downloads a receipt bundle with txid, network, receipt, anchor metadata, and document size.
 9. Verification fetches the anchor, compares commitment and block height, and optionally re-hashes the original file locally.
 
+## Verify A Receipt
+
+The normal verifier path is:
+
+1. Open `/timestamp/verify`.
+2. Load `zectime-zk-receipt.json` or paste its JSON content.
+3. Optionally select the original file.
+4. Click `Verify ZK receipt`.
+
+If the bundle includes `txid`, the txid field can stay empty. The verifier extracts it from the JSON, fetches the Orchard memo, compares the commitment and block height, and re-hashes the original file locally when provided.
+
 ## Repository Layout
 
 ```text
@@ -43,6 +55,7 @@ crates/verifier       Proof verification helpers
 crates/anchor         Zcash memo layout and zallet RPC integration
 crates/cli            zectime command-line interface
 docs                  Architecture, privacy model, operations, roadmap
+ops                   Mainnet operation helpers, including zallet RPC proxy
 ```
 
 ## Quick Start
@@ -99,7 +112,7 @@ See [docs/PRIVACY_MODEL.md](docs/PRIVACY_MODEL.md).
 
 ## Production Status
 
-The core product is ready for demos, judges, and pilot validation. It is not yet a fully audited commercial timestamping service. The main remaining production work is independent cryptographic review, hosted mainnet infrastructure, release packaging, monitoring, and durable key/wallet operations.
+The core product is ready for technical review and pilot validation. It is not yet a fully audited commercial timestamping service. The main remaining production work is independent cryptographic review, hosted mainnet infrastructure, release packaging, monitoring, and durable key/wallet operations.
 
 See [docs/ROADMAP.md](docs/ROADMAP.md).
 

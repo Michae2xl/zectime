@@ -8,6 +8,7 @@ ZecTime competes with timestamping systems on privacy, not just anchoring.
 | Decred dcrtime-style timestamp | Merkle root / anchored digest | partial | yes, depending on receipt | no |
 | OpenTimestamps-style timestamp | calendar/Bitcoin commitment path | partial | yes, depending on receipt | no |
 | ZecTime | blinded Poseidon commitment in Zcash memo | strong by default | yes | yes |
+| Broad privacy-capsule proposal | unspecified Zcash memo or OP_RETURN commitment | depends on bundle design | yes | not specified |
 
 ## Difference
 
@@ -20,6 +21,8 @@ Private file fingerprint -> Blind ZK commitment -> Zcash timestamp -> Verifiable
 ```
 
 The public anchor does not reveal the SHA-256 digest. A verifier gets stronger evidence only when the owner shares the receipt opening, original file, or a ZK proof.
+
+Compared with broad vault/capsule designs, ZecTime intentionally keeps the first product surface narrow: private proof-of-existence and verification. It does not bundle deadman switches, encrypted storage, or release automation into the timestamping primitive.
 
 ## Tradeoffs
 

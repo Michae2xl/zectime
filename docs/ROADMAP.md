@@ -2,7 +2,7 @@
 
 ## Current Readiness
 
-ZecTime is strong enough for judges, demos, and technical pilot conversations.
+ZecTime is strong enough for technical review and pilot conversations.
 
 It is not yet a fully market-grade public timestamping service. The privacy architecture is close to the target, but production trust depends on operations, audits, packaging, and reliability.
 
@@ -14,6 +14,7 @@ It is not yet a fully market-grade public timestamping service. The privacy arch
 - Blind Poseidon commitment scheme.
 - Zcash Orchard memo anchor path.
 - zallet RPC integration.
+- zallet alpha fetch fallback strategy for environments where `z_viewtransaction` cannot decode local binary memos.
 - Receipt bundle download.
 - Chain and receipt verification.
 - Optional local file re-hash during verification.

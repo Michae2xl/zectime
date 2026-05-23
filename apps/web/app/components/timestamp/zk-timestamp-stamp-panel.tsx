@@ -1,7 +1,12 @@
 "use client";
 
 import Link from "next/link";
-import { useState, type ChangeEvent, type FormEvent } from "react";
+import {
+  useEffect,
+  useState,
+  type ChangeEvent,
+  type FormEvent,
+} from "react";
 
 import { withProductLocale } from "../../../lib/locale";
 import { extractServerErrorMessage } from "../../../lib/server-error-message";
@@ -53,6 +58,7 @@ interface AnchorArtifact {
 }
 
 type Status = "idle" | "busy" | "error" | "success";
+type BusyPhase = "hashing" | "anchoring" | "confirming" | "finalizing";
 
 export function ZkTimestampStampPanel({
   locale,
@@ -61,8 +67,24 @@ export function ZkTimestampStampPanel({
   const stamp = copy.stamp;
   const [file, setFile] = useState<File | null>(null);
   const [status, setStatus] = useState<Status>("idle");
+  const [busyPhase, setBusyPhase] = useState<BusyPhase>("hashing");
+  const [elapsedSeconds, setElapsedSeconds] = useState(0);
   const [errorMessage, setErrorMessage] = useState<string>("");
   const [result, setResult] = useState<StampResult | null>(null);
+
+  useEffect(() => {
+    if (status !== "busy") {
+      return undefined;
+    }
+
+    const startedAt = Date.now();
+    setElapsedSeconds(0);
+    const intervalId = window.setInterval(() => {
+      setElapsedSeconds(Math.floor((Date.now() - startedAt) / 1000));
+    }, 1000);
+
+    return () => window.clearInterval(intervalId);
+  }, [status]);
 
   function onFileChange(event: ChangeEvent<HTMLInputElement>) {
     const next = event.target.files?.[0] ?? null;
@@ -80,9 +102,11 @@ export function ZkTimestampStampPanel({
       return;
     }
 
+    setBusyPhase("hashing");
     setStatus("busy");
     try {
       const draft = await createClientTimestampDraft(file);
+      setBusyPhase("anchoring");
 
       const response = await fetch("/api/timestamps/stamp", {
         method: "POST",
@@ -102,6 +126,7 @@ export function ZkTimestampStampPanel({
       }
 
       const payload = body as StampResponse;
+      setBusyPhase("finalizing");
       const receipt: TimestampReceiptPayload = {
         ...draft.receipt,
         block_height: payload.anchor.blockHeight ?? 0,
@@ -166,8 +191,32 @@ export function ZkTimestampStampPanel({
     return `data:application/json;charset=utf-8,${encodeURIComponent(json)}`;
   }
 
+  function buildReceiptKitDownload(): string | null {
+    if (!result) {
+      return null;
+    }
+    const json = JSON.stringify(
+      {
+        schema: "zectime-zk-receipt.v2",
+        txid: result.anchor.txid,
+        network: result.anchor.network,
+        publicReceipt: result.publicReceipt,
+        privateOpening: result.privateOpening,
+        anchor: result.anchor,
+        document: {
+          size_bytes: result.documentSizeBytes,
+        },
+      },
+      null,
+      2,
+    );
+    return `data:application/json;charset=utf-8,${encodeURIComponent(json)}`;
+  }
+
   const publicReceiptHref = buildPublicReceiptDownload();
   const privateOpeningHref = buildPrivateOpeningDownload();
+  const receiptKitHref = buildReceiptKitDownload();
+  const displayedPhase = getDisplayedBusyPhase(busyPhase, elapsedSeconds);
 
   return (
     <main className="page-shell product-shell zk-hub-shell zk-timestamp-shell">
@@ -255,6 +304,14 @@ export function ZkTimestampStampPanel({
             </div>
           </form>
 
+          {status === "busy" ? (
+            <ZkReceiptProgress
+              phase={displayedPhase}
+              elapsedSeconds={elapsedSeconds}
+              copy={stamp.progress}
+            />
+          ) : null}
+
           {status === "error" && errorMessage ? (
             <p className="zk-hub-form-error" role="alert">
               {errorMessage}
@@ -272,7 +329,15 @@ export function ZkTimestampStampPanel({
               <h2 id="zk-timestamp-stamp-result-title">
                 {stamp.result.successTitle}
               </h2>
+              <p className="zk-hub-section-copy">
+                {stamp.result.successBody}
+              </p>
             </header>
+
+            <div className="zectime-success-banner" role="status">
+              <span aria-hidden="true" />
+              <strong>{stamp.result.successStatus}</strong>
+            </div>
 
             <dl className="zk-hub-stack-grid">
               <ReceiptRow
@@ -306,9 +371,18 @@ export function ZkTimestampStampPanel({
             </div>
 
             <div className="button-row zk-hub-hero-actions">
-              {publicReceiptHref ? (
+              {receiptKitHref ? (
                 <a
                   className="button-primary"
+                  href={receiptKitHref}
+                  download="zectime-zk-receipt.json"
+                >
+                  {stamp.result.downloadLabel}
+                </a>
+              ) : null}
+              {publicReceiptHref ? (
+                <a
+                  className="button-secondary"
                   href={publicReceiptHref}
                   download="zectime-public-receipt.json"
                 >
@@ -324,6 +398,12 @@ export function ZkTimestampStampPanel({
                   {stamp.result.downloadPrivateLabel}
                 </a>
               ) : null}
+              <Link
+                className="button-secondary"
+                href={withProductLocale("/timestamp/verify", locale)}
+              >
+                {stamp.result.verifyCtaLabel}
+              </Link>
               {result.anchor.explorerUrl ? (
                 <a
                   className="button-secondary"
@@ -345,6 +425,101 @@ export function ZkTimestampStampPanel({
       </div>
     </main>
   );
+}
+
+function getDisplayedBusyPhase(
+  phase: BusyPhase,
+  elapsedSeconds: number,
+): BusyPhase {
+  if (phase === "hashing" && elapsedSeconds >= 2) {
+    return "anchoring";
+  }
+  if (phase === "anchoring" && elapsedSeconds >= 20) {
+    return "confirming";
+  }
+  return phase;
+}
+
+interface ZkReceiptProgressProps {
+  phase: BusyPhase;
+  elapsedSeconds: number;
+  copy: ZkTimestampCopy["stamp"]["progress"];
+}
+
+function ZkReceiptProgress({
+  phase,
+  elapsedSeconds,
+  copy,
+}: ZkReceiptProgressProps) {
+  const phases: readonly BusyPhase[] = [
+    "hashing",
+    "anchoring",
+    "confirming",
+    "finalizing",
+  ];
+  const activeIndex = Math.max(0, phases.indexOf(phase));
+  const progressPercent = Math.max(
+    16,
+    Math.min(96, 18 + activeIndex * 22 + elapsedSeconds * 0.7),
+  );
+  const activeCopy = copy.steps[phase];
+
+  return (
+    <div className="zectime-progress" role="status" aria-live="polite">
+      <div className="zectime-progress-header">
+        <div>
+          <p className="eyebrow">{copy.eyebrow}</p>
+          <h3>{copy.title}</h3>
+          <p>{activeCopy.body}</p>
+        </div>
+        <div className="zectime-progress-clock">
+          <span>{copy.elapsedLabel}</span>
+          <strong>{formatDuration(elapsedSeconds)}</strong>
+        </div>
+      </div>
+
+      <div className="zectime-progress-meter" aria-hidden="true">
+        <span style={{ width: `${progressPercent}%` }} />
+      </div>
+
+      <ol className="zectime-progress-steps" role="list">
+        {phases.map((nextPhase, index) => {
+          const stepCopy = copy.steps[nextPhase];
+          const state =
+            index < activeIndex
+              ? "done"
+              : index === activeIndex
+                ? "active"
+                : "pending";
+
+          return (
+            <li key={nextPhase} data-state={state}>
+              <span className="zectime-progress-step-index">
+                {String(index + 1).padStart(2, "0")}
+              </span>
+              <div>
+                <strong>{stepCopy.label}</strong>
+                <p>{stepCopy.body}</p>
+              </div>
+            </li>
+          );
+        })}
+      </ol>
+
+      <div className="zectime-progress-meta">
+        <span>
+          {copy.etaLabel}: <strong>{copy.etaValue}</strong>
+        </span>
+        <span>{copy.etaNote}</span>
+      </div>
+    </div>
+  );
+}
+
+function formatDuration(totalSeconds: number): string {
+  const minutes = Math.floor(totalSeconds / 60);
+  const seconds = totalSeconds % 60;
+  return `${minutes}:${String(seconds).padStart(2, "0")}`;
 }
 
 function isMissingAnchorConfig(body: unknown): boolean {

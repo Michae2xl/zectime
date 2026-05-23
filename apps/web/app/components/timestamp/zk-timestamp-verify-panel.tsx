@@ -44,6 +44,7 @@ export function ZkTimestampVerifyPanel({
   const verify = copy.verify;
   const [txid, setTxid] = useState<string>("");
   const [receiptJson, setReceiptJson] = useState<string>("");
+  const [receiptFile, setReceiptFile] = useState<File | null>(null);
   const [file, setFile] = useState<File | null>(null);
   const [status, setStatus] = useState<Status>("idle");
   const [errorMessage, setErrorMessage] = useState<string>("");
@@ -59,6 +60,23 @@ export function ZkTimestampVerifyPanel({
 
   function onReceiptChange(event: ChangeEvent<HTMLTextAreaElement>) {
     setReceiptJson(event.target.value);
+  }
+
+  async function onReceiptFileChange(event: ChangeEvent<HTMLInputElement>) {
+    const next = event.target.files?.[0] ?? null;
+    setReceiptFile(next);
+    setErrorMessage("");
+    if (!next) {
+      return;
+    }
+
+    try {
+      setReceiptJson(await next.text());
+      setStatus("idle");
+    } catch {
+      setStatus("error");
+      setErrorMessage(verify.errors.invalidReceipt);
+    }
   }
 
   function onFileChange(event: ChangeEvent<HTMLInputElement>) {
@@ -214,6 +232,31 @@ export function ZkTimestampVerifyPanel({
             <label className="zk-hub-form-field">
               <span className="zk-hub-form-label">
                 {verify.form.receiptLabel}
+              </span>
+              <span
+                className="zk-hub-file-picker zk-hub-file-picker-compact"
+                data-disabled={String(status === "busy")}
+              >
+                <input
+                  className="zk-hub-file-input"
+                  type="file"
+                  accept="application/json,.json"
+                  onChange={onReceiptFileChange}
+                  disabled={status === "busy"}
+                  aria-describedby="zk-timestamp-verify-receipt-file-hint"
+                />
+                <span className="zk-hub-file-button">
+                  {verify.form.chooseReceiptLabel}
+                </span>
+                <span className="zk-hub-file-name">
+                  {receiptFile?.name ?? verify.form.receiptEmptyLabel}
+                </span>
+              </span>
+              <span
+                id="zk-timestamp-verify-receipt-file-hint"
+                className="zk-hub-form-hint"
+              >
+                {verify.form.receiptFileHint}
               </span>
               <textarea
                 rows={6}

@@ -29,6 +29,8 @@ flowchart LR
 
 `crates/anchor` defines the Zcash Orchard memo layout and zallet RPC bridge.
 
+`ops/zallet-rpc-proxy.py` is an operational fallback for current zallet alpha deployments. It forwards regular JSON-RPC calls to zallet and falls back to read-only `wallet.db` lookup only when `z_viewtransaction` cannot decode the binary Orchard memo.
+
 `crates/cli` exposes the product workflow:
 
 ```bash
@@ -72,3 +74,13 @@ It validates:
 - optional local document verification when the caller provides the original file in the browser flow
 
 The API intentionally rejects multipart file upload for the fetch endpoint. Original file verification belongs in the browser.
+
+## Orchard Memo Payload
+
+The chain payload is intentionally small:
+
+```text
+ZC magic bytes | version | 32-byte blinded commitment | zero padding
+```
+
+The memo does not contain the original file, raw SHA-256 digest, nonce, filename, or user metadata. It only gives verifiers a chain-native place to retrieve the commitment by txid and block height.

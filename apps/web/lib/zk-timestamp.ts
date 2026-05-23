@@ -161,16 +161,32 @@ export interface ZkTimestampStampCopy {
     submitLabel: string;
     busyLabel: string;
   };
-    errors: {
-      missingFile: string;
-      invalidBlockHeight: string;
-      serverError: string;
-      anchorError: string;
-      missingAnchorConfig: string;
+  progress: {
+    eyebrow: string;
+    title: string;
+    elapsedLabel: string;
+    etaLabel: string;
+    etaValue: string;
+    etaNote: string;
+    steps: {
+      hashing: ZkTimestampProgressStepCopy;
+      anchoring: ZkTimestampProgressStepCopy;
+      confirming: ZkTimestampProgressStepCopy;
+      finalizing: ZkTimestampProgressStepCopy;
     };
+  };
+  errors: {
+    missingFile: string;
+    invalidBlockHeight: string;
+    serverError: string;
+    anchorError: string;
+    missingAnchorConfig: string;
+  };
   result: {
     eyebrow: string;
     successTitle: string;
+    successBody: string;
+    successStatus: string;
     commitmentLabel: string;
     blockHeightLabel: string;
     nonceLabel: string;
@@ -190,7 +206,13 @@ export interface ZkTimestampStampCopy {
     anchorCostValue: string;
     anchorCostNote: string;
     anchorExplorerLabel: string;
+    verifyCtaLabel: string;
   };
+}
+
+interface ZkTimestampProgressStepCopy {
+  label: string;
+  body: string;
 }
 
 export interface ZkTimestampVerifyCopy {
@@ -204,6 +226,9 @@ export interface ZkTimestampVerifyCopy {
     txidLabel: string;
     txidHint: string;
     receiptLabel: string;
+    chooseReceiptLabel: string;
+    receiptEmptyLabel: string;
+    receiptFileHint: string;
     receiptHint: string;
     fileLabel: string;
     chooseFileLabel: string;
@@ -347,7 +372,7 @@ const ZK_TIMESTAMP_COPY: Record<ProductLocale, ZkTimestampCopy> = {
         {
           label: "/timestamp",
           title: "Console com duas ações",
-          body: "A primeira tela abre direto em Generate ZK Receipt e Verify ZK Receipt, sem pitch deck e sem fluxo lateral.",
+          body: "A primeira tela abre direto em Generate ZK Receipt e Verify ZK Receipt, sem fluxo lateral.",
         },
         {
           label: "Generate",
@@ -633,7 +658,34 @@ const ZK_TIMESTAMP_COPY: Record<ProductLocale, ZkTimestampCopy> = {
         blockHeightHint:
           "Preenchida automaticamente pela confirmação do anchor.",
         submitLabel: "Gerar ZK receipt",
-        busyLabel: "Gerando receipt, publicando e aguardando confirmação...",
+        busyLabel: "Processando on-chain...",
+      },
+      progress: {
+        eyebrow: "Job de anchor",
+        title: "Gerando receipt na Zcash",
+        elapsedLabel: "Tempo",
+        etaLabel: "Estimativa",
+        etaValue: "2 a 5 min",
+        etaNote:
+          "Depende da inclusão do tx e das confirmações da mainnet Zcash.",
+        steps: {
+          hashing: {
+            label: "Fingerprint privado",
+            body: "O browser lê o arquivo localmente e cria o hash sem enviar o documento.",
+          },
+          anchoring: {
+            label: "Commitment cego",
+            body: "Só o commitment cego é enviado para publicação via zallet.",
+          },
+          confirming: {
+            label: "Confirmação on-chain",
+            body: "Aguardando a chain confirmar o memo Orchard que carrega o commitment.",
+          },
+          finalizing: {
+            label: "Bundle final",
+            body: "Montando o receipt kit com txid, rede, anchor, receipt público e opening local.",
+          },
+        },
       },
       errors: {
         missingFile: "Selecione um documento antes de enviar.",
@@ -646,6 +698,9 @@ const ZK_TIMESTAMP_COPY: Record<ProductLocale, ZkTimestampCopy> = {
       result: {
         eyebrow: "Receipt pronto",
         successTitle: "Receipt final ancorado",
+        successBody:
+          "O commitment foi confirmado na Zcash. Baixe o receipt kit antes de fechar esta página.",
+        successStatus: "Receipt kit pronto para download.",
         commitmentLabel: "Commitment",
         blockHeightLabel: "Altura de bloco",
         nonceLabel: "Nonce",
@@ -667,6 +722,7 @@ const ZK_TIMESTAMP_COPY: Record<ProductLocale, ZkTimestampCopy> = {
         anchorCostNote:
           "Taxa ZIP-317 cobrada pela sua wallet Zallet. Sem custo adicional do serviço.",
         anchorExplorerLabel: "Ver no explorer",
+        verifyCtaLabel: "Verificar receipt",
       },
     },
     verify: {
@@ -680,8 +736,12 @@ const ZK_TIMESTAMP_COPY: Record<ProductLocale, ZkTimestampCopy> = {
         txidLabel: "Txid do anchor",
         txidHint: "32 bytes em hex (opcional se o bundle tiver txid).",
         receiptLabel: "ZK Receipt JSON",
+        chooseReceiptLabel: "Carregar receipt",
+        receiptEmptyLabel: "Nenhum receipt selecionado",
+        receiptFileHint:
+          "Use o zectime-zk-receipt.json baixado no Generate. O txid será lido do bundle quando existir.",
         receiptHint:
-          "Cole o public receipt, private opening ou um bundle legado. A abertura privada nunca é enviada ao servidor.",
+          "Ou cole o conteúdo JSON do receipt público, private opening ou bundle legado.",
         fileLabel: "Documento original (opcional)",
         chooseFileLabel: "Escolher arquivo",
         fileEmptyLabel: "Nenhum arquivo selecionado",
@@ -1115,7 +1175,34 @@ const ZK_TIMESTAMP_COPY: Record<ProductLocale, ZkTimestampCopy> = {
         blockHeightHint:
           "Filled automatically from the confirmed anchor.",
         submitLabel: "Generate ZK receipt",
-        busyLabel: "Generating receipt, publishing, and waiting for confirmation...",
+        busyLabel: "Working on-chain...",
+      },
+      progress: {
+        eyebrow: "Anchor job",
+        title: "Generating receipt on Zcash",
+        elapsedLabel: "Elapsed",
+        etaLabel: "Estimated time",
+        etaValue: "2 to 5 min",
+        etaNote:
+          "Timing depends on transaction inclusion and Zcash mainnet confirmations.",
+        steps: {
+          hashing: {
+            label: "Private fingerprint",
+            body: "The browser reads the file locally and hashes it without uploading the document.",
+          },
+          anchoring: {
+            label: "Blind commitment",
+            body: "Only the blind commitment is sent for zallet publication.",
+          },
+          confirming: {
+            label: "On-chain confirmation",
+            body: "Waiting for the Orchard memo carrying the commitment to confirm.",
+          },
+          finalizing: {
+            label: "Final bundle",
+            body: "Building the receipt kit with txid, network, anchor, public receipt, and local opening.",
+          },
+        },
       },
       errors: {
         missingFile: "Pick a document before submitting.",
@@ -1128,6 +1215,9 @@ const ZK_TIMESTAMP_COPY: Record<ProductLocale, ZkTimestampCopy> = {
       result: {
         eyebrow: "Receipt ready",
         successTitle: "Final receipt anchored",
+        successBody:
+          "The commitment is confirmed on Zcash. Download the receipt kit before closing this page.",
+        successStatus: "Receipt kit ready for download.",
         commitmentLabel: "Commitment",
         blockHeightLabel: "Block height",
         nonceLabel: "Nonce",
@@ -1149,6 +1239,7 @@ const ZK_TIMESTAMP_COPY: Record<ProductLocale, ZkTimestampCopy> = {
         anchorCostNote:
           "ZIP-317 fee paid by your Zallet wallet. No additional service fee.",
         anchorExplorerLabel: "View on explorer",
+        verifyCtaLabel: "Verify receipt",
       },
     },
     verify: {
@@ -1162,8 +1253,12 @@ const ZK_TIMESTAMP_COPY: Record<ProductLocale, ZkTimestampCopy> = {
         txidLabel: "Anchor txid",
         txidHint: "32-byte hex (optional when the bundle includes txid).",
         receiptLabel: "ZK Receipt JSON",
+        chooseReceiptLabel: "Load receipt",
+        receiptEmptyLabel: "No receipt selected",
+        receiptFileHint:
+          "Use the zectime-zk-receipt.json downloaded from Generate. The txid is read from the bundle when present.",
         receiptHint:
-          "Paste the public receipt, private opening, or a legacy bundle. The private opening is never sent to the server.",
+          "Or paste the JSON content of the public receipt, private opening, or legacy bundle.",
         fileLabel: "Original document (optional)",
         chooseFileLabel: "Choose file",
         fileEmptyLabel: "No file selected",

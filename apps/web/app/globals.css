@@ -6677,6 +6677,12 @@ select {
   color: var(--timestamp-ink);
 }
 
+.zk-timestamp-shell .zk-hub-section-copy {
+  margin: 0;
+  color: var(--timestamp-muted);
+  line-height: 1.55;
+}
+
 .zk-timestamp-shell .zk-hub-inline-action {
   flex: 0 0 auto;
   width: fit-content;
@@ -6702,6 +6708,15 @@ select {
 .zk-timestamp-shell .zk-hub-file-picker[data-disabled="true"] {
   cursor: progress;
   opacity: 0.68;
+}
+
+.zk-timestamp-shell .zk-hub-file-picker-compact {
+  min-height: 50px;
+}
+
+.zk-timestamp-shell .zk-hub-file-picker-compact .zk-hub-file-button,
+.zk-timestamp-shell .zk-hub-file-picker-compact .zk-hub-file-name {
+  padding: 12px 16px;
 }
 
 .zk-timestamp-shell .zk-hub-file-input {
@@ -6738,11 +6753,181 @@ select {
   overflow-wrap: anywhere;
 }
 
+.zk-timestamp-shell .zectime-progress {
+  display: grid;
+  gap: 18px;
+  margin-top: 4px;
+  padding: 20px;
+  border: 1px solid rgba(21, 21, 17, 0.18);
+  background: #fffdf6;
+}
+
+.zk-timestamp-shell .zectime-progress-header {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) auto;
+  gap: 18px;
+  align-items: start;
+}
+
+.zk-timestamp-shell .zectime-progress-header h3 {
+  margin: 0;
+  color: var(--timestamp-ink);
+  font-family: var(--font-display), serif;
+  font-size: clamp(1.3rem, 2vw, 1.8rem);
+  line-height: 1.1;
+}
+
+.zk-timestamp-shell .zectime-progress-header p {
+  margin: 8px 0 0;
+  color: var(--timestamp-muted);
+  line-height: 1.55;
+}
+
+.zk-timestamp-shell .zectime-progress-clock {
+  display: grid;
+  min-width: 96px;
+  padding: 12px 14px;
+  border: 1px solid rgba(21, 21, 17, 0.14);
+  text-align: right;
+}
+
+.zk-timestamp-shell .zectime-progress-clock span {
+  color: var(--timestamp-muted);
+  font-size: 0.72rem;
+  font-weight: 800;
+  letter-spacing: 0.12em;
+  text-transform: uppercase;
+}
+
+.zk-timestamp-shell .zectime-progress-clock strong {
+  color: var(--timestamp-ink);
+  font-family: var(--font-mono), monospace;
+  font-size: 1.08rem;
+}
+
+.zk-timestamp-shell .zectime-progress-meter {
+  position: relative;
+  height: 7px;
+  overflow: hidden;
+  border: 1px solid rgba(21, 21, 17, 0.16);
+  background: rgba(21, 21, 17, 0.05);
+}
+
+.zk-timestamp-shell .zectime-progress-meter span {
+  position: absolute;
+  inset: 0 auto 0 0;
+  background: #151511;
+  transition: width 420ms ease;
+}
+
+.zk-timestamp-shell .zectime-progress-meter span::after {
+  position: absolute;
+  inset: 0;
+  background: linear-gradient(
+    90deg,
+    transparent,
+    rgba(251, 248, 239, 0.42),
+    transparent
+  );
+  animation: zectimeProgressSweep 1.2s linear infinite;
+  content: "";
+}
+
+.zk-timestamp-shell .zectime-progress-steps {
+  display: grid;
+  grid-template-columns: repeat(4, minmax(0, 1fr));
+  gap: 10px;
+  padding: 0;
+  margin: 0;
+  list-style: none;
+}
+
+.zk-timestamp-shell .zectime-progress-steps li {
+  display: grid;
+  gap: 10px;
+  align-content: start;
+  min-height: 142px;
+  padding: 14px;
+  border: 1px solid rgba(21, 21, 17, 0.14);
+  background: rgba(21, 21, 17, 0.03);
+  color: var(--timestamp-muted);
+}
+
+.zk-timestamp-shell .zectime-progress-steps li[data-state="active"] {
+  border-color: rgba(21, 21, 17, 0.52);
+  background: rgba(21, 21, 17, 0.06);
+  color: var(--timestamp-ink);
+}
+
+.zk-timestamp-shell .zectime-progress-steps li[data-state="done"] {
+  border-color: rgba(139, 111, 50, 0.32);
+  background: rgba(139, 111, 50, 0.07);
+}
+
+.zk-timestamp-shell .zectime-progress-step-index {
+  color: var(--timestamp-gold);
+  font-family: var(--font-mono), monospace;
+  font-size: 0.78rem;
+  font-weight: 800;
+  letter-spacing: 0.08em;
+}
+
+.zk-timestamp-shell .zectime-progress-steps strong {
+  display: block;
+  color: var(--timestamp-ink);
+  font-size: 0.94rem;
+}
+
+.zk-timestamp-shell .zectime-progress-steps p {
+  margin: 5px 0 0;
+  font-size: 0.82rem;
+  line-height: 1.45;
+}
+
+.zk-timestamp-shell .zectime-progress-meta {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 10px 18px;
+  color: var(--timestamp-muted);
+  font-size: 0.86rem;
+  line-height: 1.45;
+}
+
+.zk-timestamp-shell .zectime-progress-meta strong {
+  color: var(--timestamp-ink);
+}
+
+.zk-timestamp-shell .zectime-success-banner {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  padding: 14px 16px;
+  border: 1px solid rgba(31, 111, 85, 0.28);
+  background: rgba(31, 111, 85, 0.07);
+  color: var(--timestamp-green);
+}
+
+.zk-timestamp-shell .zectime-success-banner span {
+  width: 9px;
+  height: 9px;
+  background: var(--timestamp-green);
+}
+
 .zk-timestamp-shell .zk-hub-form-error {
   border-radius: 0;
   border-color: rgba(151, 55, 36, 0.32);
   background: rgba(151, 55, 36, 0.08);
   color: #79311f;
+}
+
+@keyframes zectimeProgressSweep {
+  from {
+    transform: translateX(-100%);
+  }
+
+  to {
+    transform: translateX(100%);
+  }
 }
 
 .zk-timestamp-shell .zk-hub-verification-banner {
@@ -6871,6 +7056,27 @@ select {
     gap: 10px;
     width: 100%;
     justify-items: start;
+  }
+
+  .zk-timestamp-shell .zectime-progress {
+    padding: 16px;
+  }
+
+  .zk-timestamp-shell .zectime-progress-header {
+    grid-template-columns: 1fr;
+  }
+
+  .zk-timestamp-shell .zectime-progress-clock {
+    width: fit-content;
+    text-align: left;
+  }
+
+  .zk-timestamp-shell .zectime-progress-steps {
+    grid-template-columns: 1fr;
+  }
+
+  .zk-timestamp-shell .zectime-progress-steps li {
+    min-height: auto;
   }
 
   .zk-timestamp-shell .button-primary,

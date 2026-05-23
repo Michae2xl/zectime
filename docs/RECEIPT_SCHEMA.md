@@ -26,10 +26,11 @@ The web console wraps the receipt with anchor metadata:
 
 ```json
 {
-  "schema": "zectime.public-receipt.v2",
+  "schema": "zectime-zk-receipt.v2",
   "txid": "64 hex chars",
   "network": "mainnet",
   "publicReceipt": {
+    "commitment_scheme": "zectime-poseidon-pallas-v2",
     "commitment": "64 hex chars",
     "block_height": 123456
   },
@@ -47,8 +48,16 @@ The web console wraps the receipt with anchor metadata:
     "blockHeight": 123456,
     "explorerUrl": "https://mainnet.zcashexplorer.app/transactions/..."
   },
-  "documentSizeBytes": 12345
+  "document": {
+    "size_bytes": 12345
+  }
 }
 ```
 
 `block_height` is `0` before anchoring and is filled after the chain fetch confirms the tx height.
+
+## Share Boundaries
+
+- Share `zectime-public-receipt.json` when the verifier only needs to check that a commitment was anchored.
+- Share `zectime-zk-receipt.json` or `zectime-private-opening.json` only when the verifier should be able to bind the anchor to the original file.
+- The original file is never uploaded by the verifier UI; the browser re-hashes it locally.
