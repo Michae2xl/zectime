@@ -1,0 +1,55 @@
+[workspace]
+resolver = "2"
+members = [
+    "crates/circuit",
+    "crates/prover",
+    "crates/verifier",
+    "crates/anchor",
+    "crates/cli",
+]
+
+[workspace.package]
+version = "0.1.0"
+edition = "2021"
+rust-version = "1.80"
+license = "MIT OR Apache-2.0"
+repository = "https://github.com/Michae2xl/zectime"
+authors = ["Michae2xl"]
+description = "Private Zcash timestamp receipts with blind ZK commitments"
+
+[workspace.dependencies]
+zectime-circuit = { path = "crates/circuit" }
+zectime-prover = { path = "crates/prover" }
+zectime-verifier = { path = "crates/verifier" }
+zectime-anchor = { path = "crates/anchor" }
+
+anyhow = "1"
+thiserror = "1"
+serde = { version = "1", features = ["derive"] }
+serde_json = "1"
+bincode = "1"
+hex = "0.4"
+rusqlite = { version = "0.37", features = ["bundled"] }
+clap = { version = "4", features = ["derive", "env"] }
+tokio = { version = "1", features = ["rt-multi-thread", "macros"] }
+async-trait = "0.1"
+reqwest = { version = "0.12", default-features = false, features = ["json", "rustls-tls"] }
+sha2 = "0.10"
+tracing = "0.1"
+tracing-subscriber = { version = "0.3", features = ["env-filter"] }
+halo2_proofs = "0.3"
+halo2_gadgets = "0.3"
+ff = "0.13"
+group = "0.13"
+pasta_curves = "0.5"
+rand = "0.8"
+rand_core = "0.6"
+proptest = "1"
+
+[profile.release]
+opt-level = 3
+lto = "thin"
+codegen-units = 1
+
+[profile.test]
+opt-level = 1

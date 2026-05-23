@@ -1,0 +1,30 @@
+[package]
+name = "zectime-cli"
+version.workspace = true
+edition.workspace = true
+rust-version.workspace = true
+license.workspace = true
+repository.workspace = true
+authors.workspace = true
+description = "Command-line interface for ZecTime"
+
+[[bin]]
+name = "zectime"
+path = "src/main.rs"
+
+[dependencies]
+zectime-prover.workspace = true
+zectime-verifier.workspace = true
+zectime-anchor.workspace = true
+anyhow.workspace = true
+bincode.workspace = true
+clap.workspace = true
+hex.workspace = true
+rand_core.workspace = true
+reqwest.workspace = true
+serde.workspace = true
+serde_json.workspace = true
+sha2.workspace = true
+tokio.workspace = true
+tracing.workspace = true
+tracing-subscriber.workspace = true

@@ -1,0 +1,25 @@
+[package]
+name = "zectime-prover"
+version.workspace = true
+edition.workspace = true
+rust-version.workspace = true
+license.workspace = true
+repository.workspace = true
+authors.workspace = true
+description = "Proof generation for ZecTime timestamp receipts"
+
+[dependencies]
+zectime-circuit.workspace = true
+halo2_proofs.workspace = true
+pasta_curves.workspace = true
+ff.workspace = true
+rand.workspace = true
+rand_core.workspace = true
+anyhow.workspace = true
+thiserror.workspace = true
+serde.workspace = true
+tracing.workspace = true
+
+[dev-dependencies]
+zectime-verifier.workspace = true
+halo2_gadgets.workspace = true

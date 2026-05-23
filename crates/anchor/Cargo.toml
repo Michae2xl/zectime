@@ -1,0 +1,29 @@
+[package]
+name = "zectime-anchor"
+version.workspace = true
+edition.workspace = true
+rust-version.workspace = true
+license.workspace = true
+repository.workspace = true
+authors.workspace = true
+description = "Zcash memo and zallet anchoring for ZecTime"
+
+[dependencies]
+anyhow.workspace = true
+thiserror.workspace = true
+serde.workspace = true
+serde_json.workspace = true
+hex.workspace = true
+rusqlite.workspace = true
+tokio.workspace = true
+tracing.workspace = true
+async-trait.workspace = true
+reqwest.workspace = true
+rand.workspace = true
+rand_core.workspace = true
+
+[dev-dependencies]
+tokio = { workspace = true, features = ["macros", "rt"] }
+zectime-circuit.workspace = true
+zectime-prover.workspace = true
+zectime-verifier.workspace = true
