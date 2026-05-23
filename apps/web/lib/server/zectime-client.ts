@@ -646,9 +646,13 @@ function buildRuntimeEnv(config: ZecTimeConfig): Record<string, string | undefin
   };
 }
 
-async function createRuntimeTempDir(prefix: string, baseDir = resolveRuntimeDir()): Promise<string> {
-  await mkdir(baseDir, { recursive: true });
-  return mkdtemp(join(/* turbopackIgnore: true */ baseDir, prefix));
+async function createRuntimeTempDir(
+  prefix: string,
+  baseDir?: string,
+): Promise<string> {
+  const runtimeDir = baseDir ?? resolveRuntimeDir();
+  await mkdir(runtimeDir, { recursive: true });
+  return mkdtemp(join(/* turbopackIgnore: true */ runtimeDir, prefix));
 }
 
 async function removeRuntimeTempDir(dir: string): Promise<void> {
@@ -656,9 +660,12 @@ async function removeRuntimeTempDir(dir: string): Promise<void> {
 }
 
 function resolveRuntimeDir(): string {
+  const configured = process.env.ZECTIME_WEB_RUNTIME_DIR;
+  if (configured) {
+    return resolve(/* turbopackIgnore: true */ configured);
+  }
   return resolve(
-    process.env.ZECTIME_WEB_RUNTIME_DIR ??
-      join(tmpdir(), "zectime-web-runtime"),
+    /* turbopackIgnore: true */ join(tmpdir(), "zectime-web-runtime"),
   );
 }
 
