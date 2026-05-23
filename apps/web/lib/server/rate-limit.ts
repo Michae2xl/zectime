@@ -1,5 +1,6 @@
 import { NextResponse } from "next/server";
 
+import { getClientIp } from "./client-ip";
 import type { ServerErrorEnvelope } from "./error-kinds";
 
 interface RateLimitOptions {
@@ -14,10 +15,7 @@ export function enforceRateLimit(
   scope: string,
   options: RateLimitOptions,
 ): NextResponse<ServerErrorEnvelope> | null {
-  const ip =
-    request.headers.get("x-forwarded-for")?.split(",")[0]?.trim() ??
-    request.headers.get("x-real-ip") ??
-    "local";
+  const ip = getClientIp(request);
   const key = `${scope}:${ip}`;
   const now = Date.now();
   const bucket = buckets.get(key);

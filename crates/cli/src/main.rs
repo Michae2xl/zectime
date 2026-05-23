@@ -24,6 +24,8 @@ use zectime_prover::timestamp_predicate::{
 use zectime_prover::{read_params, write_params};
 use zectime_verifier::{verify_timestamp, verify_timestamp_predicate};
 
+const MAX_PROOF_BYTES: u64 = 8 * 1024 * 1024;
+
 #[derive(Parser)]
 #[command(name = "zectime")]
 #[command(about = "Private Zcash timestamp receipts with blind ZK commitments")]
@@ -98,7 +100,7 @@ struct TimestampRevealArgs {
     #[arg(long)]
     receipt: PathBuf,
     /// Output proof file.
-    #[arg(long, default_value = "timestamp-proof.bin")]
+    #[arg(long, default_value = "timestamp-proof.json")]
     out: PathBuf,
 }
 
@@ -184,7 +186,7 @@ struct TimestampPredicateProveArgs {
     #[arg(long)]
     witness: PathBuf,
     /// Output predicate proof.
-    #[arg(long, default_value = "timestamp-predicate-proof.bin")]
+    #[arg(long, default_value = "timestamp-predicate-proof.json")]
     out: PathBuf,
 }
 
@@ -291,7 +293,7 @@ fn run_timestamp_reveal(args: TimestampRevealArgs) -> Result<()> {
     let artifacts = TimestampProvingArtifacts::from_params(params)?;
     let proof = prove_timestamp(&artifacts, &witness)?;
     let file = create_file(&args.out)?;
-    bincode::serialize_into(BufWriter::new(file), &proof)?;
+    serde_json::to_writer(BufWriter::new(file), &proof)?;
     print_timestamp_public_inputs(&proof);
     println!("wrote proof to {}", args.out.display());
     Ok(())
@@ -299,8 +301,7 @@ fn run_timestamp_reveal(args: TimestampRevealArgs) -> Result<()> {
 
 fn run_timestamp_verify(args: TimestampVerifyArgs) -> Result<()> {
     let params = read_params(BufReader::new(File::open(&args.params)?))?;
-    let proof: TimestampProof =
-        bincode::deserialize_from(BufReader::new(File::open(&args.proof)?))?;
+    let proof: TimestampProof = decode_proof_file(&args.proof)?;
     let vk = timestamp_verifying_key_for(&params)?;
     verify_timestamp(&params, &vk, &proof.public_inputs, &proof.proof)?;
     if let Some(path) = &args.receipt {
@@ -382,7 +383,7 @@ fn run_predicate_prove(args: TimestampPredicateProveArgs) -> Result<()> {
     let artifacts = TimestampPredicateProvingArtifacts::from_params(params)?;
     let proof = prove_timestamp_predicate(&artifacts, &witness)?;
     let file = create_file(&args.out)?;
-    bincode::serialize_into(BufWriter::new(file), &proof)?;
+    serde_json::to_writer(BufWriter::new(file), &proof)?;
     print_predicate_public_inputs(&proof);
     println!("wrote predicate proof to {}", args.out.display());
     Ok(())
@@ -390,8 +391,7 @@ fn run_predicate_prove(args: TimestampPredicateProveArgs) -> Result<()> {
 
 fn run_predicate_verify(args: TimestampPredicateVerifyArgs) -> Result<()> {
     let params = read_params(BufReader::new(File::open(&args.params)?))?;
-    let proof: TimestampPredicateProof =
-        bincode::deserialize_from(BufReader::new(File::open(&args.proof)?))?;
+    let proof: TimestampPredicateProof = decode_proof_file(&args.proof)?;
     if proof.public_inputs.len() != TIMESTAMP_PREDICATE_PUBLIC_INPUTS {
         anyhow::bail!("wrong predicate public input arity");
     }
@@ -399,10 +399,7 @@ fn run_predicate_verify(args: TimestampPredicateVerifyArgs) -> Result<()> {
     verify_timestamp_predicate(&params, &vk, &proof.public_inputs, &proof.proof)?;
     if let Some(path) = &args.receipt {
         let receipt = load_receipt(path)?;
-        let commitment = hex_le(&proof.public_inputs[0]);
-        if receipt.commitment != commitment {
-            anyhow::bail!("receipt commitment does not match predicate proof");
-        }
+        assert_predicate_receipt_matches(&receipt, &proof)?;
     }
     print_predicate_public_inputs(&proof);
     println!("OK: predicate proof verified");
@@ -426,6 +423,25 @@ fn load_receipt(path: &PathBuf) -> Result<TimestampReceipt> {
     Ok(serde_json::from_reader(BufReader::new(File::open(path)?))?)
 }
 
+fn decode_proof_file<T>(path: &PathBuf) -> Result<T>
+where
+    T: serde::de::DeserializeOwned,
+{
+    let metadata =
+        std::fs::metadata(path).with_context(|| format!("failed to stat {}", path.display()))?;
+    if metadata.len() > MAX_PROOF_BYTES {
+        anyhow::bail!(
+            "proof file {} is too large: {} bytes > {}",
+            path.display(),
+            metadata.len(),
+            MAX_PROOF_BYTES
+        );
+    }
+    let mut reader = BufReader::new(File::open(path)?);
+    let decoded = serde_json::from_reader(&mut reader)?;
+    Ok(decoded)
+}
+
 fn assert_receipt_matches_open_proof(path: &PathBuf, proof: &TimestampProof) -> Result<()> {
     let receipt = load_receipt(path)?;
     let commitment = hex_le(&proof.public_inputs[0]);
@@ -435,6 +451,21 @@ fn assert_receipt_matches_open_proof(path: &PathBuf, proof: &TimestampProof) -> 
     let block_height = field_repr_to_u64(&proof.public_inputs[1])?;
     if block_height != receipt.block_height {
         anyhow::bail!("receipt block_height does not match proof block_height");
+    }
+    Ok(())
+}
+
+fn assert_predicate_receipt_matches(
+    receipt: &TimestampReceipt,
+    proof: &TimestampPredicateProof,
+) -> Result<()> {
+    let commitment = hex_le(&proof.public_inputs[0]);
+    if receipt.commitment != commitment {
+        anyhow::bail!("receipt commitment does not match predicate proof");
+    }
+    let block_height = field_repr_to_u64(&proof.public_inputs[1])?;
+    if receipt.block_height != block_height {
+        anyhow::bail!("receipt block_height does not match predicate proof block_height");
     }
     Ok(())
 }
@@ -536,4 +567,46 @@ fn create_file(path: &PathBuf) -> Result<File> {
         .truncate(true)
         .open(path)
         .with_context(|| format!("failed to create {}", path.display()))
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    fn proof_with_height(commitment: [u8; 32], block_height: u64) -> TimestampPredicateProof {
+        let mut height = [0u8; 32];
+        height[..8].copy_from_slice(&block_height.to_le_bytes());
+        TimestampPredicateProof {
+            public_inputs: vec![commitment, height, [0x66; 32]],
+            proof: Vec::new(),
+        }
+    }
+
+    fn receipt_for(commitment: [u8; 32], block_height: u64) -> TimestampReceipt {
+        TimestampReceipt {
+            commitment_scheme: default_commitment_scheme(),
+            commitment: hex_le(&commitment),
+            block_height,
+            nonce: "22".repeat(16),
+            doc_hash_lo: "33".repeat(16),
+            doc_hash_hi: "44".repeat(16),
+            doc_hash_sha256: "55".repeat(32),
+        }
+    }
+
+    #[test]
+    fn predicate_receipt_match_requires_block_height() {
+        let commitment = [0x11; 32];
+        let receipt = receipt_for(commitment, 100);
+        let proof = proof_with_height(commitment, 100);
+
+        assert!(assert_predicate_receipt_matches(&receipt, &proof).is_ok());
+
+        let wrong_height = proof_with_height(commitment, 101);
+        let err = assert_predicate_receipt_matches(&receipt, &wrong_height).unwrap_err();
+        assert!(
+            err.to_string().contains("block_height"),
+            "unexpected error: {err}"
+        );
+    }
 }

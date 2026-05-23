@@ -17,7 +17,6 @@ zectime-prover.workspace = true
 zectime-verifier.workspace = true
 zectime-anchor.workspace = true
 anyhow.workspace = true
-bincode.workspace = true
 clap.workspace = true
 hex.workspace = true
 rand_core.workspace = true

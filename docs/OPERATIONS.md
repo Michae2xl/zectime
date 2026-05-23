@@ -32,12 +32,20 @@ ZECTIME_RPC_PASSWORD=<optional-rpc-password>
 ZECTIME_WALLET_DB_PATH=<optional-zallet-wallet-db>
 ZECTIME_PUBLIC_STAMP_DAILY_LIMIT=25
 ZECTIME_PUBLIC_STAMP_IP_DAILY_LIMIT=3
+ZECTIME_PUBLIC_STAMP_CONCURRENCY=1
 ZECTIME_PUBLIC_STAMP_BUDGET_PATH=../../tmp/web-runtime/public-stamp-budget.json
+ZECTIME_TRUST_PROXY_HEADERS=0
+ZECTIME_UPSTASH_REDIS_REST_URL=<optional-upstash-rest-url>
+ZECTIME_UPSTASH_REDIS_REST_TOKEN=<optional-upstash-rest-token>
 ```
 
 `ZECTIME_WALLET_DB_PATH` is only needed for the current zallet alpha fetch fallback when the app can read the local wallet database.
 
-`ZECTIME_PUBLIC_STAMP_*` caps public mainnet generation so a public website cannot spend unlimited wallet funds. Put `ZECTIME_PUBLIC_STAMP_BUDGET_PATH` on persistent storage for production. The default is 25 anchors per day globally and 3 per client IP per day.
+`ZECTIME_PUBLIC_STAMP_*` caps public mainnet generation so a public website cannot spend unlimited wallet funds. The default is 25 anchors per day globally, 3 per client IP per day, and 1 active zallet publish at a time.
+
+For a single-instance pilot, put `ZECTIME_PUBLIC_STAMP_BUDGET_PATH` on persistent storage. For a multi-instance deployment, configure `ZECTIME_UPSTASH_REDIS_REST_URL` and `ZECTIME_UPSTASH_REDIS_REST_TOKEN`; the app will use Redis `INCR` counters instead of the local JSON file.
+
+Keep `ZECTIME_TRUST_PROXY_HEADERS=0` unless the app is behind infrastructure that owns and sanitizes `X-Forwarded-For` / `X-Real-IP`. When it is `0`, all public clients share the same conservative IP bucket.
 
 ## zallet Alpha Fetch Fallback
 

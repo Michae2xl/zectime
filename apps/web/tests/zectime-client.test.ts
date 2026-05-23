@@ -5,6 +5,7 @@ import {
   getZecTimeConfig,
   hashTimestampDocument,
   parsePredicatePublicInputsFromOutput,
+  predicatePublicInputsMatchReceipt,
   parsePredicateWitness,
   parseTimestampReceipt,
   parseTimestampReceiptJson,
@@ -161,6 +162,38 @@ OK: predicate proof verified
     expect(parsed.claimHash).toBe(
       "99887766554433221100ffeeddccbbaa99887766554433221100ffeeddccbbaa",
     );
+  });
+
+  it("requires predicate proof block height to match the receipt", () => {
+    const receipt = {
+      commitment: "11".repeat(32),
+      block_height: 100,
+      nonce: "22".repeat(16),
+      doc_hash_lo: "33".repeat(16),
+      doc_hash_hi: "44".repeat(16),
+      doc_hash_sha256: "55".repeat(32),
+    };
+
+    expect(
+      predicatePublicInputsMatchReceipt(
+        {
+          commitment: "11".repeat(32),
+          blockHeight: 100,
+          claimHash: "66".repeat(32),
+        },
+        receipt,
+      ),
+    ).toBe(true);
+    expect(
+      predicatePublicInputsMatchReceipt(
+        {
+          commitment: "11".repeat(32),
+          blockHeight: 101,
+          claimHash: "66".repeat(32),
+        },
+        receipt,
+      ),
+    ).toBe(false);
   });
 });
 

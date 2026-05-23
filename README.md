@@ -102,11 +102,12 @@ ZECTIME_RPC_USER=<optional-rpc-user>
 ZECTIME_RPC_PASSWORD=<optional-rpc-password>
 ZECTIME_PUBLIC_STAMP_DAILY_LIMIT=25
 ZECTIME_PUBLIC_STAMP_IP_DAILY_LIMIT=3
+ZECTIME_PUBLIC_STAMP_CONCURRENCY=1
 ```
 
 For the Next.js app, copy `apps/web/.env.local.example` to `apps/web/.env.local`.
 
-Public Generate is budgeted by default so the website cannot spend unlimited wallet funds. The retired `/api/timestamps/anchor` route no longer accepts private receipt data; use `/api/timestamps/stamp` with a client-generated blinded commitment.
+Public Generate is budgeted by default so the website cannot spend unlimited wallet funds. Multi-instance deployments can use Upstash Redis REST for shared atomic counters. The retired `/api/timestamps/anchor` route no longer accepts private receipt data; use `/api/timestamps/stamp` with a client-generated blinded commitment.
 
 ## Privacy Position
 

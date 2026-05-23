@@ -6,7 +6,10 @@ import {
 } from "../../../../lib/server/error-kinds";
 import { enforceRateLimit } from "../../../../lib/server/rate-limit";
 import { readLimitedJsonObject } from "../../../../lib/server/request-body";
-import { reservePublicStampBudget } from "../../../../lib/server/stamp-budget";
+import {
+  reservePublicStampBudget,
+  runPublicStampOperation,
+} from "../../../../lib/server/stamp-budget";
 import { anchorTimestampCommitment } from "../../../../lib/server/zectime-client";
 
 const RATE_LIMIT = { maxRequests: 10, windowMs: 60_000 };
@@ -36,8 +39,10 @@ export async function POST(request: Request) {
       return validationResponse("Commitment must be 32-byte hex");
     }
 
-    await reservePublicStampBudget(request);
-    const artifact = await anchorTimestampCommitment(normalizedCommitment);
+    const artifact = await runPublicStampOperation(async () => {
+      await reservePublicStampBudget(request);
+      return anchorTimestampCommitment(normalizedCommitment);
+    });
 
     return NextResponse.json({
       anchor: artifact.anchor,

@@ -98,12 +98,18 @@ export interface PredicateWitness {
 
 export interface PredicateProofArtifact {
   proofBase64: string;
-  publicInputs: Record<string, string | number>;
+  publicInputs: PredicatePublicInputs;
 }
 
 export interface PredicateVerifyArtifact {
-  publicInputs: Record<string, string | number>;
+  publicInputs: PredicatePublicInputs;
   matchesReceipt: boolean | null;
+}
+
+export interface PredicatePublicInputs {
+  commitment: string;
+  blockHeight: number;
+  claimHash: string;
 }
 
 export const PREDICATE_TREE_DEPTH = 8;
@@ -526,15 +532,18 @@ export async function verifyPredicateProof(
     }
     const result = await runZecTime(args, { cwd: dir, env: buildRuntimeEnv(config) });
     const publicInputs = parsePredicatePublicInputsFromOutput(result.stdout);
-    return { publicInputs, matchesReceipt: options.receipt ? true : null };
+    return {
+      publicInputs,
+      matchesReceipt: options.receipt
+        ? predicatePublicInputsMatchReceipt(publicInputs, options.receipt)
+        : null,
+    };
   } finally {
     await removeRuntimeTempDir(dir);
   }
 }
 
-export function parsePredicatePublicInputsFromOutput(
-  output: string,
-): Record<string, string | number> {
+export function parsePredicatePublicInputsFromOutput(output: string): PredicatePublicInputs {
   const found: Record<string, string | number> = {};
   for (const line of output.split(/\r?\n/u)) {
     const match = line.match(PREDICATE_INPUT_PATTERN);
@@ -558,7 +567,21 @@ export function parsePredicatePublicInputsFromOutput(
   ) {
     throw new Error("Missing predicate public input lines in zectime output");
   }
-  return found;
+  return {
+    commitment: found.commitment,
+    blockHeight: found.blockHeight,
+    claimHash: found.claimHash,
+  };
+}
+
+export function predicatePublicInputsMatchReceipt(
+  publicInputs: PredicatePublicInputs,
+  receipt: TimestampReceipt,
+): boolean {
+  return (
+    publicInputs.commitment === receipt.commitment.toLowerCase() &&
+    publicInputs.blockHeight === receipt.block_height
+  );
 }
 
 export function buildZcashExplorerUrl(

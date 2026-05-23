@@ -21,7 +21,7 @@ flowchart LR
 `crates/circuit` defines two Halo2 circuits:
 
 - `timestamp`: proves that a private document hash and nonce open to the public commitment and block height.
-- `timestamp_predicate`: proves selective statements over private document fields without revealing the whole document.
+- `timestamp_predicate`: proves selective statements over private document fields without revealing the whole document. Predicate leaves, internal nodes, and public claim hashes use distinct Poseidon domain tags.
 
 `crates/prover` creates timestamp and predicate proofs from typed witnesses.
 

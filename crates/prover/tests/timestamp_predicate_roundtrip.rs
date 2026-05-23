@@ -6,9 +6,8 @@
 //! height, and wrong public-input arity.
 
 use ff::Field;
-use halo2_gadgets::poseidon::primitives::{ConstantLength, Hash as PoseidonHashFn, P128Pow5T3};
 use halo2_proofs::pasta::Fp;
-use zectime_circuit::timestamp_predicate::TREE_DEPTH;
+use zectime_circuit::timestamp_predicate::{TimestampPredicateCircuit, TREE_DEPTH};
 use zectime_prover::timestamp_predicate::{
     encode_field_hex, prove_timestamp_predicate, timestamp_predicate_verifying_key_for,
     PredicateWitness, TimestampPredicateProvingArtifacts, TIMESTAMP_PREDICATE_CIRCUIT_K,
@@ -21,10 +20,17 @@ const TARGET_INDEX: usize = 42;
 
 fn build_tree() -> (Fp, [Fp; TREE_DEPTH], Vec<bool>, Fp) {
     let leaf_count = 1usize << TREE_DEPTH;
-    let leaves: Vec<Fp> = (0..leaf_count)
+    let values: Vec<Fp> = (0..leaf_count)
         .map(|i| Fp::from(1_000u64 + i as u64))
         .collect();
-    let target_leaf = leaves[TARGET_INDEX];
+    let leaves: Vec<Fp> = values
+        .iter()
+        .enumerate()
+        .map(|(i, value)| {
+            TimestampPredicateCircuit::<Fp>::compute_leaf_hash(Fp::from(i as u64), *value)
+        })
+        .collect();
+    let target_leaf = values[TARGET_INDEX];
 
     let mut layer = leaves.clone();
     let mut siblings = [Fp::ZERO; TREE_DEPTH];
@@ -44,8 +50,7 @@ fn build_tree() -> (Fp, [Fp; TREE_DEPTH], Vec<bool>, Fp) {
         let mut next = Vec::with_capacity(layer.len() / 2);
         let mut i = 0;
         while i < layer.len() {
-            let h = PoseidonHashFn::<Fp, P128Pow5T3, ConstantLength<2>, 3, 2>::init()
-                .hash([layer[i], layer[i + 1]]);
+            let h = TimestampPredicateCircuit::<Fp>::compute_node_hash(layer[i], layer[i + 1]);
             next.push(h);
             i += 2;
         }

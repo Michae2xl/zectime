@@ -612,7 +612,7 @@ fn fetch_anchor_from_zallet_wallet_db(path: &Path, txid: &TxId) -> Result<Anchor
         .optional()
         .map_err(|e| RpcError::Protocol(format!("query wallet DB fallback: {e}")))?;
 
-    let (height, memo_bytes) = row.ok_or_else(|| RpcError::NotFound(*txid))?;
+    let (height, memo_bytes) = row.ok_or(RpcError::NotFound(*txid))?;
     let height = height.ok_or_else(|| {
         RpcError::Protocol("wallet DB fallback found tx but it is not mined".to_string())
     })?;

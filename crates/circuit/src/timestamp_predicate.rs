@@ -8,15 +8,15 @@
 //!    predicate stamps interop with file-mode stamps: a structured-doc stamp
 //!    sets `doc_hash_lo = doc_root` and `doc_hash_hi = 0` on the receipt and
 //!    the original open-circuit commitment formula still applies.
-//! 2. `field_value` is the leaf at position `field_index` in a depth-8
-//!    Merkle-Poseidon tree rooted at `doc_root`. Sibling hashes at each level
-//!    are supplied as private witnesses and the path direction is encoded as
-//!    8 boolean `path_bits`.
+//! 2. `Poseidon(leaf_tag, field_index, field_value)` is the leaf at position
+//!    `field_index` in a depth-8 Merkle-Poseidon tree rooted at `doc_root`.
+//!    Sibling hashes at each level are supplied as private witnesses and the
+//!    path direction is encoded as 8 boolean `path_bits`.
 //! 3. `field_index` equals the little-endian composition of the 8 path bits,
 //!    binding the revealed claim's index to the Merkle path the prover walked.
 //! 4. The publicly announced `claim_hash` equals
-//!    `Poseidon(field_index, field_value)`, giving the verifier a compact
-//!    commitment to the (index, value) pair without revealing either.
+//!    `Poseidon(claim_tag, field_index, field_value)`, giving the verifier a
+//!    compact commitment to the (index, value) pair without revealing either.
 //!
 //! Public inputs (instance column, in order):
 //!
@@ -29,10 +29,9 @@
 //! Private witnesses: `doc_root`, `nonce`, `field_index`, `field_value`,
 //! `path_bits[0..8]`, `siblings[0..8]`.
 //!
-//! The Merkle tree stores `Poseidon(left, right)` at every internal node. The
-//! leaf is the raw `field_value` (no leaf pre-hash) — leaf collisions across
-//! distinct `field_index` are avoided because the `claim_hash` also binds the
-//! index. Authors building the tree MUST use the same leaf convention.
+//! The Merkle tree stores `Poseidon(node_tag, left, right)` at every internal
+//! node. Leaves are `Poseidon(leaf_tag, field_index, field_value)`. Domain tags
+//! keep leaf, internal-node, and claim hashes in separate domains.
 
 use std::marker::PhantomData;
 
@@ -53,15 +52,24 @@ use halo2_proofs::{
 /// Merkle tree depth (number of levels of sibling hashes the path walks).
 pub const TREE_DEPTH: usize = 8;
 
-/// Poseidon arity for Merkle internal nodes: `Poseidon(left, right)`.
-pub const MERKLE_ARITY: usize = 2;
+/// Poseidon arity for Merkle internal nodes: `Poseidon(node_tag, left, right)`.
+pub const MERKLE_ARITY: usize = 3;
 
 /// Poseidon arity for the commitment — matches
 /// [`crate::timestamp::TimestampOpenCircuit`]'s domain-tagged 4-input shape.
 pub const COMMITMENT_ARITY: usize = 4;
 
-/// Poseidon arity for the claim hash: `Poseidon(field_index, field_value)`.
-pub const CLAIM_ARITY: usize = 2;
+/// Poseidon arity for leaf/claim hashes: `Poseidon(tag, field_index, field_value)`.
+pub const CLAIM_ARITY: usize = 3;
+
+/// Domain tag for predicate tree leaves.
+pub const PREDICATE_LEAF_DOMAIN_TAG: u64 = 0x0000_5a65_4c65_6166;
+
+/// Domain tag for predicate tree internal nodes.
+pub const PREDICATE_NODE_DOMAIN_TAG: u64 = 0x0000_5a65_4e6f_6465;
+
+/// Domain tag for predicate claim hashes.
+pub const PREDICATE_CLAIM_DOMAIN_TAG: u64 = 0x005a_6543_6c61_696d;
 
 /// Poseidon width used by `P128Pow5T3` (3 state words).
 pub(crate) const POSEIDON_WIDTH: usize = 3;
@@ -185,14 +193,33 @@ where
         ])
     }
 
-    /// Out-of-circuit claim hash: `Poseidon(field_index, field_value)`.
+    /// Out-of-circuit leaf hash: `Poseidon(leaf_tag, field_index, field_value)`.
+    pub fn compute_leaf_hash(field_index: F, field_value: F) -> F {
+        use halo2_gadgets::poseidon::primitives::Hash;
+        Hash::<F, P128Pow5T3, ConstantLength<CLAIM_ARITY>, POSEIDON_WIDTH, POSEIDON_RATE>::init()
+            .hash([F::from(PREDICATE_LEAF_DOMAIN_TAG), field_index, field_value])
+    }
+
+    /// Out-of-circuit claim hash: `Poseidon(claim_tag, field_index, field_value)`.
     pub fn compute_claim_hash(field_index: F, field_value: F) -> F {
         use halo2_gadgets::poseidon::primitives::Hash;
         Hash::<F, P128Pow5T3, ConstantLength<CLAIM_ARITY>, POSEIDON_WIDTH, POSEIDON_RATE>::init()
-            .hash([field_index, field_value])
+            .hash([
+                F::from(PREDICATE_CLAIM_DOMAIN_TAG),
+                field_index,
+                field_value,
+            ])
     }
 
-    /// Out-of-circuit Merkle root reconstruction. Follows the same
+    /// Out-of-circuit internal-node hash: `Poseidon(node_tag, left, right)`.
+    pub fn compute_node_hash(left: F, right: F) -> F {
+        use halo2_gadgets::poseidon::primitives::Hash;
+        Hash::<F, P128Pow5T3, ConstantLength<MERKLE_ARITY>, POSEIDON_WIDTH, POSEIDON_RATE>::init()
+            .hash([F::from(PREDICATE_NODE_DOMAIN_TAG), left, right])
+    }
+
+    /// Out-of-circuit Merkle root reconstruction from a tagged leaf hash.
+    /// Follows the same
     /// (current, sibling, bit) fold used inside `synthesize`, with `bit == 0`
     /// placing `current` on the left.
     pub fn compute_merkle_root(
@@ -200,7 +227,6 @@ where
         path_bits: &[F; TREE_DEPTH],
         siblings: &[F; TREE_DEPTH],
     ) -> F {
-        use halo2_gadgets::poseidon::primitives::Hash;
         let mut current = leaf;
         for i in 0..TREE_DEPTH {
             let bit = path_bits[i];
@@ -209,14 +235,7 @@ where
             } else {
                 (siblings[i], current)
             };
-            current = Hash::<
-                F,
-                P128Pow5T3,
-                ConstantLength<MERKLE_ARITY>,
-                POSEIDON_WIDTH,
-                POSEIDON_RATE,
-            >::init()
-            .hash([left, right]);
+            current = Self::compute_node_hash(left, right);
         }
         current
     }
@@ -416,9 +435,48 @@ where
         )?;
 
         // ------------------------------------------------------------------
-        // 2. Merkle path: fold from leaf (= field_value) up to doc_root.
+        // 2. Merkle path: fold from tagged leaf up to doc_root.
         // ------------------------------------------------------------------
-        let mut current = field_value_cell.clone();
+        let leaf_tag_cell = layouter.assign_region(
+            || "predicate leaf domain tag",
+            |mut region| {
+                region.assign_advice_from_constant(
+                    || "leaf domain tag",
+                    config.main,
+                    0,
+                    F::from(PREDICATE_LEAF_DOMAIN_TAG),
+                )
+            },
+        )?;
+        let leaf_chip = Pow5Chip::construct(config.poseidon.clone());
+        let leaf_hasher = PoseidonHash::<
+            F,
+            Pow5Chip<F, POSEIDON_WIDTH, POSEIDON_RATE>,
+            P128Pow5T3,
+            ConstantLength<CLAIM_ARITY>,
+            POSEIDON_WIDTH,
+            POSEIDON_RATE,
+        >::init(leaf_chip, layouter.namespace(|| "leaf init"))?;
+        let mut current = leaf_hasher.hash(
+            layouter.namespace(|| "leaf hash"),
+            [
+                leaf_tag_cell,
+                field_index_cell.clone(),
+                field_value_cell.clone(),
+            ],
+        )?;
+
+        let node_tag_cell = layouter.assign_region(
+            || "predicate node domain tag",
+            |mut region| {
+                region.assign_advice_from_constant(
+                    || "node domain tag",
+                    config.main,
+                    0,
+                    F::from(PREDICATE_NODE_DOMAIN_TAG),
+                )
+            },
+        )?;
         #[allow(clippy::needless_range_loop)]
         for level in 0..TREE_DEPTH {
             let (left_cell, right_cell) =
@@ -496,7 +554,7 @@ where
             )?;
             current = hasher.hash(
                 layouter.namespace(|| format!("merkle hash level {level}")),
-                [left_cell, right_cell],
+                [node_tag_cell.clone(), left_cell, right_cell],
             )?;
         }
 
@@ -559,8 +617,19 @@ where
         layouter.constrain_instance(commitment.cell(), config.instance, INSTANCE_COMMITMENT)?;
 
         // ------------------------------------------------------------------
-        // 4. Claim hash: Poseidon(field_index, field_value) == instance[2].
+        // 4. Claim hash: Poseidon(claim_tag, field_index, field_value) == instance[2].
         // ------------------------------------------------------------------
+        let claim_tag_cell = layouter.assign_region(
+            || "predicate claim domain tag",
+            |mut region| {
+                region.assign_advice_from_constant(
+                    || "claim domain tag",
+                    config.main,
+                    0,
+                    F::from(PREDICATE_CLAIM_DOMAIN_TAG),
+                )
+            },
+        )?;
         let claim_chip = Pow5Chip::construct(config.poseidon.clone());
         let claim_hasher = PoseidonHash::<
             F,
@@ -572,7 +641,7 @@ where
         >::init(claim_chip, layouter.namespace(|| "claim init"))?;
         let claim = claim_hasher.hash(
             layouter.namespace(|| "claim hash"),
-            [field_index_cell, field_value_cell.clone()],
+            [claim_tag_cell, field_index_cell, field_value_cell.clone()],
         )?;
         layouter.constrain_instance(claim.cell(), config.instance, INSTANCE_CLAIM_HASH)?;
 
@@ -600,11 +669,18 @@ mod tests {
     /// leaf value at `target_index`.
     fn build_tree(target_index: usize) -> (Fp, [Fp; TREE_DEPTH], [Fp; TREE_DEPTH], Fp) {
         let leaf_count = 1 << TREE_DEPTH;
-        let leaves: Vec<Fp> = (0..leaf_count)
+        let values: Vec<Fp> = (0..leaf_count)
             .map(|i| Fp::from(1_000u64 + i as u64))
             .collect();
+        let leaves: Vec<Fp> = values
+            .iter()
+            .enumerate()
+            .map(|(i, value)| {
+                TimestampPredicateCircuit::<Fp>::compute_leaf_hash(Fp::from(i as u64), *value)
+            })
+            .collect();
 
-        let target_leaf = leaves[target_index];
+        let target_leaf = values[target_index];
 
         let mut layer = leaves.clone();
         let mut siblings = [Fp::ZERO; TREE_DEPTH];
@@ -633,7 +709,7 @@ mod tests {
                     POSEIDON_WIDTH,
                     POSEIDON_RATE,
                 >::init()
-                .hash([layer[i], layer[i + 1]]);
+                .hash([Fp::from(PREDICATE_NODE_DOMAIN_TAG), layer[i], layer[i + 1]]);
                 next.push(h);
                 i += 2;
             }

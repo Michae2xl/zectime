@@ -16,6 +16,9 @@ It is not yet a fully market-grade public timestamping service. The privacy arch
 - zallet RPC integration.
 - zallet alpha fetch fallback strategy for environments where `z_viewtransaction` cannot decode local binary memos.
 - Public API hardening: body limits, retired private-receipt anchor endpoint, public stamp budget, and CLI timeout.
+- Predicate receipt binding checks commitment and block height.
+- Predicate Poseidon domains are separated for leaf, internal-node, and claim hashes.
+- CLI proof serialization uses JSON with proof file size guards.
 - Receipt bundle download.
 - Chain and receipt verification.
 - Optional local file re-hash during verification.
