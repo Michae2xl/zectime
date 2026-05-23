@@ -15,6 +15,7 @@ It is not yet a fully market-grade public timestamping service. The privacy arch
 - Zcash Orchard memo anchor path.
 - zallet RPC integration.
 - zallet alpha fetch fallback strategy for environments where `z_viewtransaction` cannot decode local binary memos.
+- Public API hardening: body limits, retired private-receipt anchor endpoint, public stamp budget, and CLI timeout.
 - Receipt bundle download.
 - Chain and receipt verification.
 - Optional local file re-hash during verification.
@@ -25,7 +26,7 @@ It is not yet a fully market-grade public timestamping service. The privacy arch
 ## Needed For Commercial 10/10
 
 - Independent cryptographic review of the commitment and circuits.
-- Security review of the web/API boundary.
+- External security review of the web/API boundary.
 - Hosted mainnet deployment with monitored zallet infrastructure.
 - Public sample receipts and verifier examples.
 - Reproducible release binaries for `zectime`.

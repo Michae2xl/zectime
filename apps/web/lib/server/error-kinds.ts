@@ -148,10 +148,13 @@ export function createServerErrorResponse(
 ): NextResponse {
   const payload = classifyError(error, context);
   const shouldLogStack = payload.kind === "unknown";
-  if (shouldLogStack) {
-    logServerError(context, error);
-  } else {
-    logServerError(`${context}:${payload.kind}`, error);
+  const shouldLog = payload.kind !== "validation" && payload.kind !== "rate_limit";
+  if (shouldLog) {
+    if (shouldLogStack) {
+      logServerError(context, error);
+    } else {
+      logServerError(`${context}:${payload.kind}`, error);
+    }
   }
 
   return NextResponse.json<ServerErrorEnvelope>(

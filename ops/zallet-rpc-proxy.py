@@ -88,12 +88,24 @@ def rpc_error(request_id: Any, message: str, code: int = -20) -> bytes:
 class ProxyHandler(BaseHTTPRequestHandler):
     upstream_url: str
     wallet_db: str
+    max_body_bytes: int
 
     def log_message(self, fmt: str, *args: Any) -> None:
         sys.stderr.write("%s - %s\n" % (self.address_string(), fmt % args))
 
     def do_POST(self) -> None:
-        length = int(self.headers.get("content-length", "0"))
+        try:
+            length = int(self.headers.get("content-length", "0"))
+        except ValueError:
+            self.send_response(400)
+            self.end_headers()
+            self.wfile.write(b"invalid Content-Length")
+            return
+        if length < 0 or length > self.max_body_bytes:
+            self.send_response(413)
+            self.end_headers()
+            self.wfile.write(b"request body too large")
+            return
         request_body = self.rfile.read(length)
         try:
             request_json = json.loads(request_body)
@@ -176,16 +188,32 @@ def main() -> None:
     parser.add_argument("--port", type=int, default=29232)
     parser.add_argument("--upstream", default="http://127.0.0.1:28232/")
     parser.add_argument("--wallet-db", default="/media/zebra-ssd/zallet-data/wallet.db")
+    parser.add_argument("--max-body-bytes", type=int, default=1024 * 1024)
+    parser.add_argument(
+        "--allow-remote",
+        action="store_true",
+        help="Allow non-loopback listen addresses. Use only behind a firewall or private tunnel.",
+    )
     args = parser.parse_args()
+
+    if not args.allow_remote and not is_loopback_bind(args.listen):
+        parser.error("refusing non-loopback --listen without --allow-remote")
+    if args.max_body_bytes < 1:
+        parser.error("--max-body-bytes must be positive")
 
     ProxyHandler.upstream_url = args.upstream
     ProxyHandler.wallet_db = args.wallet_db
+    ProxyHandler.max_body_bytes = args.max_body_bytes
     server = ThreadingHTTPServer((args.listen, args.port), ProxyHandler)
     print(
         f"zallet RPC proxy listening on {args.listen}:{args.port}, upstream={args.upstream}",
         flush=True,
     )
     server.serve_forever()
+
+
+def is_loopback_bind(host: str) -> bool:
+    return host in {"127.0.0.1", "::1", "localhost"}
 
 
 if __name__ == "__main__":

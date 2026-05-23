@@ -5,9 +5,12 @@ import {
   type ServerErrorEnvelope,
 } from "../../../../lib/server/error-kinds";
 import { enforceRateLimit } from "../../../../lib/server/rate-limit";
+import { readLimitedJsonObject } from "../../../../lib/server/request-body";
+import { reservePublicStampBudget } from "../../../../lib/server/stamp-budget";
 import { anchorTimestampCommitment } from "../../../../lib/server/zectime-client";
 
 const RATE_LIMIT = { maxRequests: 10, windowMs: 60_000 };
+const MAX_BODY_BYTES = 1_024;
 
 function validationResponse(message: string, status = 400): NextResponse {
   return NextResponse.json<ServerErrorEnvelope>(
@@ -21,16 +24,7 @@ export async function POST(request: Request) {
   if (throttled) return throttled;
 
   try {
-    let payload: unknown;
-    try {
-      payload = await request.json();
-    } catch {
-      return validationResponse("Expected JSON body");
-    }
-
-    if (typeof payload !== "object" || payload === null) {
-      return validationResponse("Expected JSON object");
-    }
+    const payload = await readLimitedJsonObject(request, MAX_BODY_BYTES);
 
     const commitment = (payload as { commitment?: unknown }).commitment;
     if (typeof commitment !== "string") {
@@ -42,6 +36,7 @@ export async function POST(request: Request) {
       return validationResponse("Commitment must be 32-byte hex");
     }
 
+    await reservePublicStampBudget(request);
     const artifact = await anchorTimestampCommitment(normalizedCommitment);
 
     return NextResponse.json({

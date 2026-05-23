@@ -5,6 +5,7 @@ import {
   type ServerErrorEnvelope,
 } from "../../../../../lib/server/error-kinds";
 import { enforceRateLimit } from "../../../../../lib/server/rate-limit";
+import { readLimitedJsonObject } from "../../../../../lib/server/request-body";
 import {
   parseTimestampReceipt,
   parseTimestampReceiptJson,
@@ -13,6 +14,8 @@ import {
 } from "../../../../../lib/server/zectime-client";
 
 const RATE_LIMIT = { maxRequests: 20, windowMs: 60_000 };
+const MAX_BODY_BYTES = 4 * 1024 * 1024;
+const MAX_PROOF_BASE64_CHARS = 3 * 1024 * 1024;
 
 interface PredicateVerifyRequestBody {
   proofBase64?: unknown;
@@ -36,12 +39,17 @@ export async function POST(request: Request) {
   if (throttled) return throttled;
 
   try {
-    const payload = (await readRequestJson(
+    const payload = (await readLimitedJsonObject(
       request,
+      MAX_BODY_BYTES,
     )) as PredicateVerifyRequestBody;
 
     if (typeof payload.proofBase64 !== "string" || !payload.proofBase64) {
       return validationResponse("Missing required field: proofBase64");
+    }
+    const proofBase64 = normalizeProofBase64(payload.proofBase64);
+    if (!proofBase64) {
+      return validationResponse("Invalid proofBase64");
     }
 
     let receipt: TimestampReceipt | undefined;
@@ -52,7 +60,7 @@ export async function POST(request: Request) {
       return validationResponse(message);
     }
 
-    const result = await verifyPredicateProof(payload.proofBase64, { receipt });
+    const result = await verifyPredicateProof(proofBase64, { receipt });
 
     return NextResponse.json({
       verification: {
@@ -79,12 +87,13 @@ function extractReceipt(
   return undefined;
 }
 
-async function readRequestJson(
-  request: Request,
-): Promise<Record<string, unknown>> {
-  const raw = await request.text();
-  if (!raw) {
-    return {};
+function normalizeProofBase64(raw: string): string | null {
+  const normalized = raw.replace(/\s+/gu, "");
+  if (!normalized || normalized.length > MAX_PROOF_BASE64_CHARS) {
+    return null;
   }
-  return JSON.parse(raw) as Record<string, unknown>;
+  if (normalized.length % 4 !== 0) {
+    return null;
+  }
+  return /^[A-Za-z0-9+/]+={0,2}$/u.test(normalized) ? normalized : null;
 }

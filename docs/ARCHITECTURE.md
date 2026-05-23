@@ -16,7 +16,7 @@ flowchart LR
 
 ## Components
 
-`apps/web` provides the browser console. It keeps file hashing and local file verification in the client. The API bridge receives commitments, receipts, txids, and proof payloads, but it does not receive original files.
+`apps/web` provides the browser console. It keeps file hashing and local file verification in the client. The public API bridge receives blinded commitments, public receipts, txids, and proof payloads, but it does not receive original files or private openings.
 
 `crates/circuit` defines two Halo2 circuits:
 
@@ -74,6 +74,14 @@ It validates:
 - optional local document verification when the caller provides the original file in the browser flow
 
 The API intentionally rejects multipart file upload for the fetch endpoint. Original file verification belongs in the browser.
+
+The public generation API is:
+
+```text
+POST /api/timestamps/stamp
+```
+
+It accepts only a 32-byte blinded commitment and is protected by a daily public stamping budget to cap wallet spend. The legacy `/api/timestamps/anchor` route is retired with `410` so full receipts cannot be accidentally posted to the backend.
 
 ## Orchard Memo Payload
 

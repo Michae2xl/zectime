@@ -28,6 +28,7 @@ export interface ZecTimeConfig {
   rpcUser?: string;
   rpcPassword?: string;
   walletDbPath?: string;
+  cliTimeoutMs: number;
 }
 
 export interface TimestampReceipt {
@@ -151,6 +152,9 @@ export function getZecTimeConfig(
       overrides.walletDbPath ??
       getOptionalEnv("ZECTIME_WALLET_DB_PATH") ??
       getOptionalEnv("ZALLET_WALLET_DB_PATH"),
+    cliTimeoutMs:
+      overrides.cliTimeoutMs ??
+      parsePositiveIntegerEnv("ZECTIME_CLI_TIMEOUT_MS", 15 * 60 * 1000),
   };
 }
 
@@ -582,6 +586,11 @@ async function runZecTime(
   });
   let stdout = "";
   let stderr = "";
+  let timedOut = false;
+  const timeoutId = setTimeout(() => {
+    timedOut = true;
+    child.kill("SIGKILL");
+  }, config.cliTimeoutMs);
   child.stdout.setEncoding("utf8").on("data", (chunk) => {
     stdout += chunk;
   });
@@ -592,6 +601,10 @@ async function runZecTime(
     child.on("error", reject);
     child.on("close", resolvePromise);
   });
+  clearTimeout(timeoutId);
+  if (timedOut) {
+    throw new Error(`zectime timed out after ${config.cliTimeoutMs}ms`);
+  }
   if (exitCode !== 0) {
     throw new Error(stderr || stdout || `zectime exited with code ${exitCode}`);
   }
@@ -629,6 +642,18 @@ function resolveRuntimeDir(): string {
 function getOptionalEnv(name: string): string | undefined {
   const value = process.env[name];
   return value && value.length > 0 ? value : undefined;
+}
+
+function parsePositiveIntegerEnv(name: string, fallback: number): number {
+  const value = getOptionalEnv(name);
+  if (!value) {
+    return fallback;
+  }
+  const parsed = Number(value);
+  if (!Number.isInteger(parsed) || parsed < 1) {
+    throw new Error(`${name} must be a positive integer`);
+  }
+  return parsed;
 }
 
 function parseOptionalRuntimeNetwork(

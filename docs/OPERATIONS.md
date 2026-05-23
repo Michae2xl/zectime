@@ -24,14 +24,20 @@ ZECTIME_PARAMS_PATH=../../tmp/web-params.bin
 ZECTIME_PREDICATE_PARAMS_PATH=../../tmp/web-predicate-params.bin
 ZECTIME_WEB_RUNTIME_DIR=../../tmp/web-runtime
 ZECTIME_NETWORK=mainnet
+ZECTIME_CLI_TIMEOUT_MS=900000
 ZECTIME_RPC_URL=http://127.0.0.1:28232/
 ZECTIME_FROM_ADDRESS=<zallet-unified-address>
 ZECTIME_RPC_USER=<optional-rpc-user>
 ZECTIME_RPC_PASSWORD=<optional-rpc-password>
 ZECTIME_WALLET_DB_PATH=<optional-zallet-wallet-db>
+ZECTIME_PUBLIC_STAMP_DAILY_LIMIT=25
+ZECTIME_PUBLIC_STAMP_IP_DAILY_LIMIT=3
+ZECTIME_PUBLIC_STAMP_BUDGET_PATH=../../tmp/web-runtime/public-stamp-budget.json
 ```
 
 `ZECTIME_WALLET_DB_PATH` is only needed for the current zallet alpha fetch fallback when the app can read the local wallet database.
+
+`ZECTIME_PUBLIC_STAMP_*` caps public mainnet generation so a public website cannot spend unlimited wallet funds. Put `ZECTIME_PUBLIC_STAMP_BUDGET_PATH` on persistent storage for production. The default is 25 anchors per day globally and 3 per client IP per day.
 
 ## zallet Alpha Fetch Fallback
 
@@ -59,6 +65,16 @@ Then set:
 ```bash
 ZECTIME_RPC_URL=http://127.0.0.1:29232/
 ```
+
+Keep the proxy bound to localhost or a private tunnel. It refuses non-loopback bind addresses unless `--allow-remote` is passed. Only use `--allow-remote` behind a firewall or private tunnel because the proxy forwards zallet RPC calls.
+
+## Public API Privacy Boundaries
+
+`/api/timestamps/stamp` accepts only a 32-byte blinded commitment. It does not accept the file, nonce, document hash, or private opening.
+
+`/api/timestamps/anchor` is retired and returns `410`. It is kept only as a stable error for old clients, because accepting full receipts would let users accidentally send private opening material to the backend.
+
+`/api/timestamps/fetch` accepts a public receipt or full bundle, but extracts only public receipt fields before calling the backend. Original file verification stays in the browser.
 
 ## Mainnet Anchor
 

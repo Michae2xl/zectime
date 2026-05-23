@@ -5,7 +5,9 @@ import {
   type ServerErrorEnvelope,
 } from "../../../../../lib/server/error-kinds";
 import { enforceRateLimit } from "../../../../../lib/server/rate-limit";
+import { readLimitedJsonObject } from "../../../../../lib/server/request-body";
 const RATE_LIMIT = { maxRequests: 5, windowMs: 60_000 };
+const MAX_BODY_BYTES = 16 * 1024;
 
 function validationResponse(message: string): NextResponse {
   return NextResponse.json<ServerErrorEnvelope>(
@@ -23,21 +25,11 @@ export async function POST(request: Request) {
   if (throttled) return throttled;
 
   try {
-    await readRequestJson(request);
+    await readLimitedJsonObject(request, MAX_BODY_BYTES);
     return validationResponse(
       "Predicate proving is local-only for privacy. Use the zectime CLI or a WASM client; this API never accepts witness JSON.",
     );
   } catch (error) {
     return createServerErrorResponse("timestamps/predicate/prove", error);
   }
-}
-
-async function readRequestJson(
-  request: Request,
-): Promise<Record<string, unknown>> {
-  const raw = await request.text();
-  if (!raw) {
-    return {};
-  }
-  return JSON.parse(raw) as Record<string, unknown>;
 }

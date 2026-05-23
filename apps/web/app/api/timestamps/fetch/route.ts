@@ -5,6 +5,7 @@ import {
   type ServerErrorEnvelope,
 } from "../../../../lib/server/error-kinds";
 import { enforceRateLimit } from "../../../../lib/server/rate-limit";
+import { readLimitedJsonObject } from "../../../../lib/server/request-body";
 import {
   fetchTimestampAnchor,
   parseTimestampPublicReceipt,
@@ -12,6 +13,7 @@ import {
 } from "../../../../lib/server/zectime-client";
 
 const RATE_LIMIT = { maxRequests: 30, windowMs: 60_000 };
+const MAX_BODY_BYTES = 64 * 1024;
 
 interface FetchRequestBody {
   txid?: unknown;
@@ -126,17 +128,7 @@ function parseReceiptEnvelope(value: unknown): {
 }
 
 async function readFetchRequest(request: Request): Promise<FetchRequestBody> {
-  return (await readRequestJson(request)) as FetchRequestBody;
-}
-
-async function readRequestJson(
-  request: Request,
-): Promise<Record<string, unknown>> {
-  const raw = await request.text();
-  if (!raw) {
-    return {};
-  }
-  return JSON.parse(raw) as Record<string, unknown>;
+  return (await readLimitedJsonObject(request, MAX_BODY_BYTES)) as FetchRequestBody;
 }
 
 function normalizeTxid(raw: unknown): string | null {

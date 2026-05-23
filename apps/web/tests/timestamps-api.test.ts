@@ -27,6 +27,10 @@ type ErrorEnvelope = { error: { kind: string; message: string } };
 
 beforeEach(() => {
   vi.clearAllMocks();
+  process.env.ZECTIME_PUBLIC_STAMP_BUDGET_PATH =
+    `/tmp/zectime-test-budget-${process.pid}-${Date.now()}-${Math.random()}.json`;
+  process.env.ZECTIME_PUBLIC_STAMP_DAILY_LIMIT = "25";
+  process.env.ZECTIME_PUBLIC_STAMP_IP_DAILY_LIMIT = "3";
 });
 
 describe("/api/timestamps/stamp", () => {
@@ -88,6 +92,38 @@ describe("/api/timestamps/stamp", () => {
     expect(mockedClient.anchorTimestampCommitment).toHaveBeenCalledWith(
       "aa".repeat(32),
     );
+  });
+
+  it("enforces the public stamp budget before spending wallet funds", async () => {
+    process.env.ZECTIME_PUBLIC_STAMP_IP_DAILY_LIMIT = "1";
+    mockedClient.anchorTimestampCommitment.mockResolvedValueOnce({
+      anchor: {
+        txid: "ab".repeat(32),
+        network: "mainnet",
+        commitment: "aa".repeat(32),
+        blockHeight: 42,
+        explorerUrl: "https://mainnet.zcashexplorer.app/transactions/ab",
+      },
+    });
+
+    const first = await stampRoute(
+      new Request("http://localhost/api/timestamps/stamp", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ commitment: "aa".repeat(32) }),
+      }),
+    );
+    const second = await stampRoute(
+      new Request("http://localhost/api/timestamps/stamp", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ commitment: "bb".repeat(32) }),
+      }),
+    );
+
+    expect(first.status).toBe(200);
+    expect(second.status).toBe(429);
+    expect(mockedClient.anchorTimestampCommitment).toHaveBeenCalledTimes(1);
   });
 });
 
@@ -259,131 +295,31 @@ describe("/api/timestamps/fetch", () => {
 });
 
 describe("/api/timestamps/anchor", () => {
-  it("rejects requests without a receipt payload", async () => {
+  it("is retired so private receipt openings are not accepted by the backend", async () => {
     const response = await anchorRoute(
       new Request("http://localhost/api/timestamps/anchor", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({}),
+        body: JSON.stringify({
+          receipt: {
+            commitment_scheme: "zectime-poseidon-pallas-v2",
+            commitment: "aa".repeat(32),
+            block_height: 42,
+            nonce: "bb".repeat(16),
+            doc_hash_lo: "cc".repeat(16),
+            doc_hash_hi: "dd".repeat(16),
+            doc_hash_sha256: "ee".repeat(32),
+          },
+        }),
       }),
     );
 
-    expect(response.status).toBe(400);
+    expect(response.status).toBe(410);
     const body = (await response.json()) as ErrorEnvelope;
     expect(body.error.kind).toBe("validation");
-    expect(body.error.message).toMatch(/receipt or receiptjson/i);
-  });
-
-  it("broadcasts the receipt and returns the anchor artifact with explorer url", async () => {
-    const receipt = {
-      commitment_scheme: "zectime-poseidon-pallas-v2",
-      commitment: "aa".repeat(32),
-      block_height: 42,
-      nonce: "bb".repeat(16),
-      doc_hash_lo: "cc".repeat(16),
-      doc_hash_hi: "dd".repeat(16),
-      doc_hash_sha256: "ee".repeat(32),
-    };
-    mockedClient.parseTimestampReceipt.mockReturnValueOnce(receipt);
-    mockedClient.anchorTimestampReceipt.mockResolvedValueOnce({
-      txid: "ab".repeat(32),
-      network: "regtest",
-      commitment: "aa".repeat(32),
-      blockHeight: null,
-      explorerUrl: null,
-    });
-
-    const response = await anchorRoute(
-      new Request("http://localhost/api/timestamps/anchor", {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ receipt }),
-      }),
-    );
-
-    expect(response.status).toBe(200);
-    const body = (await response.json()) as {
-      artifact: {
-        txid: string;
-        network: string;
-        commitment: string;
-        explorerUrl: string | null;
-      };
-    };
-    expect(body.artifact.txid).toBe("ab".repeat(32));
-    expect(body.artifact.network).toBe("regtest");
-    expect(body.artifact.explorerUrl).toBeNull();
-    expect(mockedClient.anchorTimestampReceipt).toHaveBeenCalledWith(receipt);
-  });
-
-  it("returns an explorer url for mainnet anchors", async () => {
-    const receipt = {
-      commitment_scheme: "zectime-poseidon-pallas-v2",
-      commitment: "aa".repeat(32),
-      block_height: 42,
-      nonce: "bb".repeat(16),
-      doc_hash_lo: "cc".repeat(16),
-      doc_hash_hi: "dd".repeat(16),
-      doc_hash_sha256: "ee".repeat(32),
-    };
-    mockedClient.parseTimestampReceipt.mockReturnValueOnce(receipt);
-    mockedClient.anchorTimestampReceipt.mockResolvedValueOnce({
-      txid: "ab".repeat(32),
-      network: "mainnet",
-      commitment: "aa".repeat(32),
-      blockHeight: null,
-      explorerUrl: `https://mainnet.zcashexplorer.app/transactions/${"ab".repeat(32)}`,
-    });
-
-    const response = await anchorRoute(
-      new Request("http://localhost/api/timestamps/anchor", {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ receipt }),
-      }),
-    );
-
-    expect(response.status).toBe(200);
-    const body = (await response.json()) as {
-      artifact: { explorerUrl: string };
-    };
-    expect(body.artifact.explorerUrl).toBe(
-      `https://mainnet.zcashexplorer.app/transactions/${"ab".repeat(32)}`,
-    );
-  });
-
-  it("sanitizes helper errors into a generic 500", async () => {
-    const receipt = {
-      commitment_scheme: "zectime-poseidon-pallas-v2",
-      commitment: "aa".repeat(32),
-      block_height: 42,
-      nonce: "bb".repeat(16),
-      doc_hash_lo: "cc".repeat(16),
-      doc_hash_hi: "dd".repeat(16),
-      doc_hash_sha256: "ee".repeat(32),
-    };
-    mockedClient.parseTimestampReceipt.mockReturnValueOnce(receipt);
-    mockedClient.anchorTimestampReceipt.mockRejectedValueOnce(
-      new Error("zallet offline /private/paths/leaked"),
-    );
-
-    const consoleSpy = vi.spyOn(console, "error").mockImplementation(() => {});
-    const response = await anchorRoute(
-      new Request("http://localhost/api/timestamps/anchor", {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ receipt }),
-      }),
-    );
-
-    expect(response.status).toBe(500);
-    const body = (await response.json()) as ErrorEnvelope;
-    expect(body.error.kind).toBe("unknown");
-    expect(body.error.message).toBe("Internal server error");
-    expect(body.error.message).not.toMatch(/zallet/i);
-    expect(body.error.message).not.toMatch(/private/i);
-    expect(consoleSpy).toHaveBeenCalled();
-    consoleSpy.mockRestore();
+    expect(body.error.message).toMatch(/no longer accepts private receipt/i);
+    expect(mockedClient.parseTimestampReceipt).not.toHaveBeenCalled();
+    expect(mockedClient.anchorTimestampReceipt).not.toHaveBeenCalled();
   });
 });
 
