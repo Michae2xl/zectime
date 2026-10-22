@@ -22,6 +22,7 @@ const contentSecurityPolicy = [
   .trim();
 
 const securityHeaders: Array<{ key: string; value: string }> = [
+  { key: "X-App-Revision", value: "security-20261022" },
   { key: "Content-Security-Policy", value: contentSecurityPolicy },
   { key: "X-Frame-Options", value: "DENY" },
   { key: "X-Content-Type-Options", value: "nosniff" },
